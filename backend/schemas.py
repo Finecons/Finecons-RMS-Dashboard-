@@ -41,6 +41,17 @@ class CreateUserRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     new_password: str
 
+class UserUpdateRequest(BaseModel):
+    username: Optional[str] = None
+    full_name: Optional[str] = None
+    role: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    designation: Optional[str] = None
+    sales_head_id: Optional[int] = None
+    is_active: Optional[bool] = None
+    new_password: Optional[str] = None
+
 class InvoiceBase(BaseModel):
     invoice_number: str
     party_name: str

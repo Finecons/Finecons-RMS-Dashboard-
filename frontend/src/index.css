@@ -653,13 +653,44 @@ tr.credit-row td {
   flex-direction: column;
   justify-content: space-between;
   position: relative;
-  overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  min-width: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .kpi-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
+}
+
+.kpi-card.is-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.kpi-card.is-clickable:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.12);
+}
+
+.kpi-card.is-active {
+  box-shadow: 0 0 0 3px #3b82f6, 0 10px 25px -5px rgba(59, 130, 246, 0.25) !important;
+  transform: translateY(-2px);
+}
+
+.kpi-card.kpi-green.is-active {
+  box-shadow: 0 0 0 3px #10b981, 0 10px 25px -5px rgba(16, 185, 129, 0.25) !important;
+}
+
+.kpi-card.kpi-orange.is-active {
+  box-shadow: 0 0 0 3px #f59e0b, 0 10px 25px -5px rgba(245, 158, 11, 0.25) !important;
+}
+
+.kpi-card.kpi-red.is-active {
+  box-shadow: 0 0 0 3px #ef4444, 0 10px 25px -5px rgba(239, 68, 68, 0.25) !important;
+}
+
+.kpi-card.kpi-credit.is-active {
+  box-shadow: 0 0 0 3px #8b5cf6, 0 10px 25px -5px rgba(139, 92, 246, 0.25) !important;
 }
 
 .kpi-header {
@@ -694,12 +725,14 @@ tr.credit-row td {
 .kpi-settled .kpi-icon { background: #f1f5f9; color: #64748b; }
 
 .kpi-amount {
-  font-size: 1.65rem;
+  font-size: clamp(1.2rem, 1.4vw, 1.6rem);
   font-weight: 800;
   color: var(--fc-navy-900);
-  line-height: 1.1;
+  line-height: 1.15;
   font-family: 'Outfit', sans-serif;
   margin-bottom: 0.5rem;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
 }
 
 .kpi-sub {
@@ -1530,7 +1563,7 @@ tr.credit-row td {
     max-width: 95vw;
   }
   .kpi-amount {
-    font-size: clamp(1.8rem, 2vw, 2.4rem);
+    font-size: clamp(1.35rem, 1.45vw, 1.75rem);
   }
   .data-table th, .data-table td {
     padding: 1rem 1.25rem;

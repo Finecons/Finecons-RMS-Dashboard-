@@ -215,9 +215,13 @@ export default function AMDashboard({
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards (Interactive Filters) */}
       <div className="kpi-grid">
-        <div className="kpi-card kpi-total">
+        <div 
+          className={`kpi-card kpi-total is-clickable ${filterStatus === 'ALL' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus('ALL')}
+          title="Click to view all outstanding invoices"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Total Outstanding</span>
             <div className="kpi-icon"><DollarSign size={20} /></div>
@@ -225,10 +229,15 @@ export default function AMDashboard({
           <div className="kpi-amount">{formatCurrency(data.total_pending)}</div>
           <div className="kpi-sub">
             <span>Across {data.clients.length} Clients ({data.invoices.length} Bills)</span>
+            {filterStatus === 'ALL' && <span className="kpi-filter-tag" style={{ background: '#e0f2fe', color: '#0369a1' }}>● Showing All</span>}
           </div>
         </div>
 
-        <div className="kpi-card kpi-green">
+        <div 
+          className={`kpi-card kpi-green is-clickable ${filterStatus === 'GREEN' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus(filterStatus === 'GREEN' ? 'ALL' : 'GREEN')}
+          title="Click to filter Delayed ≤ 30 Days (Fresh Bills)"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Delayed ≤ 30 Days</span>
             <div className="kpi-icon"><CheckCircle2 size={20} /></div>
@@ -239,10 +248,15 @@ export default function AMDashboard({
           <div className="kpi-sub">
             <span className="badge badge-green">🟢 Fresh Bills</span>
             {data.green_count !== undefined && <span>{data.green_count} bills</span>}
+            {filterStatus === 'GREEN' && <span className="kpi-filter-tag" style={{ background: '#dcfce7', color: '#15803d' }}>● Filter Active</span>}
           </div>
         </div>
 
-        <div className="kpi-card kpi-orange">
+        <div 
+          className={`kpi-card kpi-orange is-clickable ${filterStatus === 'ORANGE' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus(filterStatus === 'ORANGE' ? 'ALL' : 'ORANGE')}
+          title="Click to filter Delayed 31 - 90 Days (Follow-up Due)"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Delayed 31 - 90 Days</span>
             <div className="kpi-icon"><AlertTriangle size={20} /></div>
@@ -253,10 +267,15 @@ export default function AMDashboard({
           <div className="kpi-sub">
             <span className="badge badge-orange">🟠 Follow-up Due</span>
             {data.orange_count !== undefined && <span>{data.orange_count} bills</span>}
+            {filterStatus === 'ORANGE' && <span className="kpi-filter-tag" style={{ background: '#fef3c7', color: '#b45309' }}>● Filter Active</span>}
           </div>
         </div>
 
-        <div className="kpi-card kpi-red">
+        <div 
+          className={`kpi-card kpi-red is-clickable ${filterStatus === 'RED' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus(filterStatus === 'RED' ? 'ALL' : 'RED')}
+          title="Click to filter Critical > 90 Days (Escalation Required)"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Delayed &gt; 90 Days</span>
             <div className="kpi-icon"><ShieldAlert size={20} /></div>
@@ -267,10 +286,15 @@ export default function AMDashboard({
           <div className="kpi-sub">
             <span className="badge badge-red">🔴 Escalation Required</span>
             {data.red_count !== undefined && <span>{data.red_count} bills</span>}
+            {filterStatus === 'RED' && <span className="kpi-filter-tag" style={{ background: '#fee2e2', color: '#b91c1c' }}>● Filter Active</span>}
           </div>
         </div>
 
-        <div className="kpi-card kpi-credit">
+        <div 
+          className={`kpi-card kpi-credit is-clickable ${filterStatus === 'CREDIT' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus(filterStatus === 'CREDIT' ? 'ALL' : 'CREDIT')}
+          title="Click to filter Credit Notes"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Credit Notes</span>
             <div className="kpi-icon"><Receipt size={20} /></div>
@@ -281,6 +305,7 @@ export default function AMDashboard({
           <div className="kpi-sub">
             <span className="badge badge-credit">🟣 {data.credit_count || 0} Credit Notes</span>
             <span>Adjusted from Total</span>
+            {filterStatus === 'CREDIT' && <span className="kpi-filter-tag" style={{ background: '#f3e8ff', color: '#6b21a8' }}>● Filter Active</span>}
           </div>
         </div>
       </div>
@@ -416,7 +441,7 @@ export default function AMDashboard({
                     </button>
                   </div>
                 </th>
-                <th>Status Highlight</th>
+                <th>Aging Status</th>
                 <th className="sticky-col-right" style={{ textAlign: 'center' }}>History</th>
               </tr>
             </thead>

@@ -81,6 +81,18 @@ export default function SalesHeadDashboard({
     return matchesSearch && matchesStatus && matchesAM;
   });
 
+  const filteredDirectInvoices = (data.direct_invoices || []).filter(inv => {
+    const matchesSearch = !search ||
+      inv.invoice_number.toLowerCase().includes(search.toLowerCase()) ||
+      inv.party_name.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus =
+      filterStatus === 'ALL' ||
+      (filterStatus === 'SETTLED' ? inv.status === 'SETTLED' :
+        filterStatus === 'CREDIT' ? inv.amount_type === 'Cr' && inv.status !== 'SETTLED' :
+          inv.aging_status === filterStatus && inv.amount_type !== 'Cr' && inv.status !== 'SETTLED');
+    return matchesSearch && matchesStatus;
+  });
+
   const handleExportCsv = () => {
     exportConsolidatedReceivablesToCsv(
       `${data.sales_head_name}_Team_Receivables_${new Date().toISOString().split('T')[0]}.csv`,
@@ -226,9 +238,13 @@ export default function SalesHeadDashboard({
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards (Interactive Filters) */}
       <div className="kpi-grid">
-        <div className="kpi-card kpi-total">
+        <div 
+          className={`kpi-card kpi-total is-clickable ${filterStatus === 'ALL' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus('ALL')}
+          title="Click to view all team receivables"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Team Total Pending</span>
             <div className="kpi-icon"><Briefcase size={20} /></div>
@@ -236,10 +252,15 @@ export default function SalesHeadDashboard({
           <div className="kpi-amount">{formatCurrency(data.total_team_pending)}</div>
           <div className="kpi-sub">
             <span>Across {data.account_managers.length} Account Managers</span>
+            {filterStatus === 'ALL' && <span className="kpi-filter-tag" style={{ background: '#e0f2fe', color: '#0369a1' }}>● Showing All</span>}
           </div>
         </div>
 
-        <div className="kpi-card kpi-green">
+        <div 
+          className={`kpi-card kpi-green is-clickable ${filterStatus === 'GREEN' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus(filterStatus === 'GREEN' ? 'ALL' : 'GREEN')}
+          title="Click to filter Delayed ≤ 30 Days (Healthy)"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Delayed ≤ 30 Days</span>
             <div className="kpi-icon"><CheckCircle2 size={20} /></div>
@@ -250,10 +271,15 @@ export default function SalesHeadDashboard({
           <div className="kpi-sub">
             <span className="badge badge-green">Healthy</span>
             <span>Within standard credit terms</span>
+            {filterStatus === 'GREEN' && <span className="kpi-filter-tag" style={{ background: '#dcfce7', color: '#15803d' }}>● Filter Active</span>}
           </div>
         </div>
 
-        <div className="kpi-card kpi-orange">
+        <div 
+          className={`kpi-card kpi-orange is-clickable ${filterStatus === 'ORANGE' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus(filterStatus === 'ORANGE' ? 'ALL' : 'ORANGE')}
+          title="Click to filter Delayed 31 - 90 Days (Follow-up)"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Delayed 31 - 90 Days</span>
             <div className="kpi-icon"><AlertTriangle size={20} /></div>
@@ -264,10 +290,15 @@ export default function SalesHeadDashboard({
           <div className="kpi-sub">
             <span className="badge badge-orange">Follow-up</span>
             <span>Needs manager intervention</span>
+            {filterStatus === 'ORANGE' && <span className="kpi-filter-tag" style={{ background: '#fef3c7', color: '#b45309' }}>● Filter Active</span>}
           </div>
         </div>
 
-        <div className="kpi-card kpi-red">
+        <div 
+          className={`kpi-card kpi-red is-clickable ${filterStatus === 'RED' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus(filterStatus === 'RED' ? 'ALL' : 'RED')}
+          title="Click to filter Critical > 90 Days"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Critical &gt; 90 Days</span>
             <div className="kpi-icon"><ShieldAlert size={20} /></div>
@@ -278,10 +309,15 @@ export default function SalesHeadDashboard({
           <div className="kpi-sub">
             <span className="badge badge-red">Escalation</span>
             <span>High credit risk</span>
+            {filterStatus === 'RED' && <span className="kpi-filter-tag" style={{ background: '#fee2e2', color: '#b91c1c' }}>● Filter Active</span>}
           </div>
         </div>
 
-        <div className="kpi-card kpi-credit">
+        <div 
+          className={`kpi-card kpi-credit is-clickable ${filterStatus === 'CREDIT' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus(filterStatus === 'CREDIT' ? 'ALL' : 'CREDIT')}
+          title="Click to filter Credit Notes"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Credit Notes</span>
             <div className="kpi-icon"><Receipt size={20} /></div>
@@ -292,6 +328,7 @@ export default function SalesHeadDashboard({
           <div className="kpi-sub">
             <span className="badge badge-credit">🟣 {data.credit_count || 0} Credit Notes</span>
             <span>Adjusted from Total</span>
+            {filterStatus === 'CREDIT' && <span className="kpi-filter-tag" style={{ background: '#f3e8ff', color: '#6b21a8' }}>● Filter Active</span>}
           </div>
         </div>
       </div>
@@ -356,12 +393,12 @@ export default function SalesHeadDashboard({
                         </button>
                       </div>
                     </th>
-                    <th>Status Highlight</th>
+                    <th>Aging Status</th>
                     <th className="sticky-col-right" style={{ textAlign: 'center' }}>Audit</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.direct_invoices.map((inv) => (
+                  {filteredDirectInvoices.map((inv) => (
                     <tr key={inv.invoice_number} style={inv.amount_type === 'Cr' ? { background: '#f0fdf4' } : {}}>
                       <td style={{ fontWeight: 700, color: 'var(--fc-navy-900)' }}>
                         🏢 {inv.party_name}

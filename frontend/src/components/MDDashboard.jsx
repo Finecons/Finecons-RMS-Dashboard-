@@ -203,9 +203,13 @@ export default function MDDashboard({
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards (Interactive Filters) */}
       <div className="kpi-grid">
-        <div className="kpi-card kpi-total">
+        <div 
+          className={`kpi-card kpi-total is-clickable ${filterStatus === 'ALL' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus('ALL')}
+          title="Click to view all company receivables"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Total Receivables</span>
             <div className="kpi-icon"><Building2 size={20} /></div>
@@ -213,10 +217,15 @@ export default function MDDashboard({
           <div className="kpi-amount">{formatCurrency(data.total_company_pending)}</div>
           <div className="kpi-sub">
             <span>{data.total_invoices_count} pending invoices across {data.total_clients_count} clients</span>
+            {filterStatus === 'ALL' && <span className="kpi-filter-tag" style={{ background: '#e0f2fe', color: '#0369a1' }}>● Showing All</span>}
           </div>
         </div>
 
-        <div className="kpi-card kpi-green">
+        <div 
+          className={`kpi-card kpi-green is-clickable ${filterStatus === 'GREEN' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus(filterStatus === 'GREEN' ? 'ALL' : 'GREEN')}
+          title="Click to filter Delayed ≤ 30 Days (Healthy)"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Delayed ≤ 30 Days</span>
             <div className="kpi-icon"><CheckCircle2 size={20} /></div>
@@ -227,10 +236,15 @@ export default function MDDashboard({
           <div className="kpi-sub">
             <span className="badge badge-green">Healthy</span>
             <span>{data.green_count} fresh invoices</span>
+            {filterStatus === 'GREEN' && <span className="kpi-filter-tag" style={{ background: '#dcfce7', color: '#15803d' }}>● Filter Active</span>}
           </div>
         </div>
 
-        <div className="kpi-card kpi-orange">
+        <div 
+          className={`kpi-card kpi-orange is-clickable ${filterStatus === 'ORANGE' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus(filterStatus === 'ORANGE' ? 'ALL' : 'ORANGE')}
+          title="Click to filter Delayed 31 - 90 Days (Follow-up)"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Delayed 31 - 90 Days</span>
             <div className="kpi-icon"><AlertTriangle size={20} /></div>
@@ -241,10 +255,15 @@ export default function MDDashboard({
           <div className="kpi-sub">
             <span className="badge badge-orange">Follow-up</span>
             <span>{data.orange_count} warning invoices</span>
+            {filterStatus === 'ORANGE' && <span className="kpi-filter-tag" style={{ background: '#fef3c7', color: '#b45309' }}>● Filter Active</span>}
           </div>
         </div>
 
-        <div className="kpi-card kpi-red">
+        <div 
+          className={`kpi-card kpi-red is-clickable ${filterStatus === 'RED' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus(filterStatus === 'RED' ? 'ALL' : 'RED')}
+          title="Click to filter Critical > 90 Days"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Delayed &gt; 90 Days</span>
             <div className="kpi-icon"><ShieldAlert size={20} /></div>
@@ -255,10 +274,15 @@ export default function MDDashboard({
           <div className="kpi-sub">
             <span className="badge badge-red">Critical</span>
             <span>{data.red_count} overdue invoices</span>
+            {filterStatus === 'RED' && <span className="kpi-filter-tag" style={{ background: '#fee2e2', color: '#b91c1c' }}>● Filter Active</span>}
           </div>
         </div>
 
-        <div className="kpi-card kpi-credit">
+        <div 
+          className={`kpi-card kpi-credit is-clickable ${filterStatus === 'CREDIT' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus(filterStatus === 'CREDIT' ? 'ALL' : 'CREDIT')}
+          title="Click to filter Credit Notes"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Credit Notes</span>
             <div className="kpi-icon"><Receipt size={20} /></div>
@@ -269,10 +293,15 @@ export default function MDDashboard({
           <div className="kpi-sub">
             <span className="badge badge-credit">Adjustments</span>
             <span>{data.credit_count || 0} credit notes</span>
+            {filterStatus === 'CREDIT' && <span className="kpi-filter-tag" style={{ background: '#f3e8ff', color: '#6b21a8' }}>● Filter Active</span>}
           </div>
         </div>
 
-        <div className="kpi-card kpi-settled">
+        <div 
+          className={`kpi-card kpi-settled is-clickable ${filterStatus === 'SETTLED' ? 'is-active' : ''}`}
+          onClick={() => setFilterStatus(filterStatus === 'SETTLED' ? 'ALL' : 'SETTLED')}
+          title="Click to filter Auto-Settled / Paid"
+        >
           <div className="kpi-header">
             <span className="kpi-title">Auto-Settled / Paid</span>
             <div className="kpi-icon"><CheckCircle2 size={20} /></div>
@@ -283,6 +312,7 @@ export default function MDDashboard({
           <div className="kpi-sub">
             <span className="badge badge-settled">Cleared</span>
             <span>{data.settled_count} settled bills</span>
+            {filterStatus === 'SETTLED' && <span className="kpi-filter-tag" style={{ background: '#f1f5f9', color: '#475569' }}>● Filter Active</span>}
           </div>
         </div>
       </div>

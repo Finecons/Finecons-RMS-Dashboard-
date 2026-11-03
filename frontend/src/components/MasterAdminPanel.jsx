@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, UserPlus, Key, Trash2, Shield, Search, CheckCircle, 
-  AlertCircle, X, ArrowLeft, RefreshCw, Briefcase, Mail, Phone 
+  AlertCircle, X, ArrowLeft, RefreshCw, Briefcase, Mail, Phone, Edit3 
 } from 'lucide-react';
 
 export default function MasterAdminPanel({ onBack }) {
@@ -15,6 +15,21 @@ export default function MasterAdminPanel({ onBack }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [resetModalUser, setResetModalUser] = useState(null);
   const [newPassword, setNewPassword] = useState('');
+
+  // Edit User Modal state
+  const [editModalUser, setEditModalUser] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    full_name: '',
+    username: '',
+    role: 'ACCOUNT_MANAGER',
+    sales_head_id: '',
+    email: '',
+    phone: '',
+    designation: '',
+    is_active: true,
+    new_password: ''
+  });
+  const [editingLoading, setEditingLoading] = useState(false);
 
   // Add User Form state
   const [formData, setFormData] = useState({
@@ -134,6 +149,48 @@ export default function MasterAdminPanel({ onBack }) {
       fetchUsersAndSalesHeads();
     } catch (err) {
       alert(`Error: ${err.message}`);
+    }
+  };
+
+  const handleUpdateUser = async (e) => {
+    e.preventDefault();
+    if (!editModalUser) return;
+
+    try {
+      setEditingLoading(true);
+      const payload = {
+        full_name: editFormData.full_name,
+        username: editFormData.username,
+        role: editFormData.role,
+        sales_head_id: editFormData.role === 'ACCOUNT_MANAGER' && editFormData.sales_head_id ? Number(editFormData.sales_head_id) : null,
+        email: editFormData.email || null,
+        phone: editFormData.phone || null,
+        designation: editFormData.designation || null,
+        is_active: editFormData.is_active,
+        ...(editFormData.new_password && editFormData.new_password.trim() ? { new_password: editFormData.new_password.trim() } : {})
+      };
+
+      const res = await fetch(`/api/admin/users/${editModalUser.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const updated = await res.json();
+      if (!res.ok) {
+        throw new Error(updated.detail || 'Failed to update user profile');
+      }
+
+      setFeedback({
+        type: 'success',
+        message: `User "${updated.full_name}" updated successfully${editFormData.new_password ? ' (with new password)' : ''}!`
+      });
+      setEditModalUser(null);
+      fetchUsersAndSalesHeads();
+    } catch (err) {
+      alert(`Update Error: ${err.message}`);
+    } finally {
+      setEditingLoading(false);
     }
   };
 
@@ -292,7 +349,30 @@ export default function MasterAdminPanel({ onBack }) {
                     <span className="badge badge-green">Active</span>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                      <button 
+                        className="btn-outline" 
+                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderColor: '#93c5fd', color: '#1d4ed8' }}
+                        onClick={() => {
+                          setEditModalUser(u);
+                          setEditFormData({
+                            full_name: u.full_name || '',
+                            username: u.username || '',
+                            role: u.role || 'ACCOUNT_MANAGER',
+                            sales_head_id: u.sales_head_id || (salesHeads.length > 0 ? salesHeads[0].id : ''),
+                            email: u.email || '',
+                            phone: u.phone || '',
+                            designation: u.designation || '',
+                            is_active: u.is_active !== undefined ? u.is_active : true,
+                            new_password: ''
+                          });
+                        }}
+                        title="Edit User Profile & Change Password"
+                      >
+                        <Edit3 size={13} color="#2563eb" />
+                        <span>Edit</span>
+                      </button>
+
                       <button 
                         className="btn-outline" 
                         style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
@@ -526,6 +606,188 @@ export default function MasterAdminPanel({ onBack }) {
                   </button>
                   <button type="submit" className="btn-accent">
                     <span>Save New Password</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal (With Password Editing) */}
+      {editModalUser && (
+        <div className="modal-overlay" onClick={() => setEditModalUser(null)}>
+          <div className="modal-content" style={{ maxWidth: '560px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <Edit3 size={20} color="var(--fc-navy-700)" />
+                <h3 style={{ fontSize: '1.15rem', margin: 0 }}>
+                  Edit System User: <span style={{ color: 'var(--fc-orange-600)' }}>{editModalUser.full_name}</span>
+                </h3>
+              </div>
+              <button onClick={() => setEditModalUser(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <form onSubmit={handleUpdateUser}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                      Full Name *
+                    </label>
+                    <input 
+                      type="text" 
+                      className="search-input" 
+                      style={{ width: '100%' }}
+                      value={editFormData.full_name}
+                      onChange={e => setEditFormData({ ...editFormData, full_name: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                      Username *
+                    </label>
+                    <input 
+                      type="text" 
+                      className="search-input" 
+                      style={{ width: '100%' }}
+                      value={editFormData.username}
+                      onChange={e => setEditFormData({ ...editFormData, username: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                      Role *
+                    </label>
+                    <select 
+                      className="search-input" 
+                      style={{ width: '100%' }}
+                      value={editFormData.role}
+                      onChange={e => setEditFormData({ ...editFormData, role: e.target.value })}
+                    >
+                      <option value="ACCOUNT_MANAGER">Account Manager</option>
+                      <option value="SALES_HEAD">Sales Head</option>
+                      <option value="MD">Managing Director (MD)</option>
+                      <option value="BILLING">Sales & Billing Admin</option>
+                    </select>
+                  </div>
+
+                  {editFormData.role === 'ACCOUNT_MANAGER' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                        Assigned Sales Head *
+                      </label>
+                      <select 
+                        className="search-input" 
+                        style={{ width: '100%' }}
+                        value={editFormData.sales_head_id}
+                        onChange={e => setEditFormData({ ...editFormData, sales_head_id: e.target.value })}
+                      >
+                        <option value="">-- Select Sales Head --</option>
+                        {salesHeads.map(sh => (
+                          <option key={sh.id} value={sh.id}>{sh.full_name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                      Email Address
+                    </label>
+                    <input 
+                      type="email" 
+                      className="search-input" 
+                      style={{ width: '100%' }}
+                      value={editFormData.email}
+                      onChange={e => setEditFormData({ ...editFormData, email: e.target.value })}
+                      placeholder="user@finecons.com"
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                      Phone / Mobile
+                    </label>
+                    <input 
+                      type="text" 
+                      className="search-input" 
+                      style={{ width: '100%' }}
+                      value={editFormData.phone}
+                      onChange={e => setEditFormData({ ...editFormData, phone: e.target.value })}
+                      placeholder="+91 98765 43210"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Designation
+                  </label>
+                  <input 
+                    type="text" 
+                    className="search-input" 
+                    style={{ width: '100%' }}
+                    value={editFormData.designation}
+                    onChange={e => setEditFormData({ ...editFormData, designation: e.target.value })}
+                    placeholder="e.g. Account Manager - Enterprise"
+                  />
+                </div>
+
+                {/* Password Edit Field */}
+                <div style={{ 
+                  marginBottom: '1.25rem', 
+                  padding: '0.85rem 1rem', 
+                  background: '#f8fafc', 
+                  border: '1px solid #e2e8f0', 
+                  borderRadius: 'var(--radius-sm)' 
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
+                    <Key size={14} color="var(--fc-orange-600)" />
+                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--fc-navy-900)' }}>
+                      Change Password (Optional)
+                    </label>
+                  </div>
+                  <input 
+                    type="password" 
+                    className="search-input" 
+                    style={{ width: '100%', background: '#fff' }}
+                    placeholder="Leave blank to keep existing password, or enter new password"
+                    value={editFormData.new_password}
+                    onChange={e => setEditFormData({ ...editFormData, new_password: e.target.value })}
+                    autoComplete="new-password"
+                  />
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                    💡 If left blank, the user's current password remains unchanged.
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                  <button 
+                    type="button" 
+                    className="btn-outline" 
+                    onClick={() => setEditModalUser(null)}
+                    disabled={editingLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn-accent"
+                    disabled={editingLoading}
+                  >
+                    <CheckCircle size={16} />
+                    <span>{editingLoading ? 'Saving...' : 'Save Changes'}</span>
                   </button>
                 </div>
               </form>

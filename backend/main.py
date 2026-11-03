@@ -18,7 +18,7 @@ try:
     from .schemas import (
         UserOut, InvoiceOut, MDDashboardResponse, SalesHeadDashboardResponse,
         AMDashboardResponse, UploadSummaryResponse, SalesHeadSummary,
-        AccountManagerSummary, ClientSummary, UpdateRemarksRequest
+        AccountManagerSummary, ClientSummary, UpdateRemarksRequest, UserUpdateRequest
     )
     from .parser import parse_tally_workbook, calculate_aging, parse_tally_date
     from .seed_data import seed_database
@@ -28,7 +28,7 @@ except ImportError:
     from schemas import (
         UserOut, InvoiceOut, MDDashboardResponse, SalesHeadDashboardResponse,
         AMDashboardResponse, UploadSummaryResponse, SalesHeadSummary,
-        AccountManagerSummary, ClientSummary, UpdateRemarksRequest
+        AccountManagerSummary, ClientSummary, UpdateRemarksRequest, UserUpdateRequest
     )
     from parser import parse_tally_workbook, calculate_aging, parse_tally_date
     from seed_data import seed_database
@@ -53,6 +53,18 @@ def ensure_database_columns():
             for col_name, col_type in new_cols:
                 if col_name not in existing_cols:
                     conn.execute(text(f"ALTER TABLE invoices ADD COLUMN {col_name} {col_type}"))
+
+            # Automatic invoice reassignment fix for Rekhal (guarantees strict separation)
+            rekhal_user = conn.execute(text("SELECT id, full_name FROM users WHERE full_name LIKE '%Rekhal%' OR username = 'rekhal'")).fetchone()
+            if rekhal_user:
+                r_id, r_name = rekhal_user[0], rekhal_user[1]
+                target_invoices = ['FINE/2832/24-25', 'FINE/1429/25-26', 'FINE/2632/24-25']
+                for inv_no in target_invoices:
+                    conn.execute(
+                        text("UPDATE invoices SET account_manager_id = :aid, account_manager_name = :aname WHERE invoice_number = :inv_no"),
+                        {"aid": r_id, "aname": r_name, "inv_no": inv_no}
+                    )
+
             conn.commit()
     except Exception as e:
         print("Column migration check:", e)
@@ -193,6 +205,54 @@ def reset_password(user_id: int, req: ResetPasswordRequest, db: Session = Depend
     user.password_hash = hash_password(req.new_password)
     db.commit()
     return {"message": f"Password for {user.full_name} reset successfully.", "user_id": user.id}
+
+@app.put("/api/admin/users/{user_id}", response_model=UserOut)
+def update_user(user_id: int, req: UserUpdateRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if req.username and req.username.strip() != user.username:
+        existing = db.query(User).filter(User.username == req.username.strip(), User.id != user_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Username already exists")
+        user.username = req.username.strip()
+
+    if req.full_name is not None and req.full_name.strip():
+        user.full_name = req.full_name.strip()
+
+    if req.role is not None:
+        user.role = req.role
+
+    if req.sales_head_id is not None:
+        user.sales_head_id = req.sales_head_id if user.role == "ACCOUNT_MANAGER" else None
+    elif user.role != "ACCOUNT_MANAGER":
+        user.sales_head_id = None
+
+    if req.email is not None:
+        user.email = req.email.strip() if req.email else None
+
+    if req.phone is not None:
+        user.phone = req.phone.strip() if req.phone else None
+
+    if req.designation is not None:
+        user.designation = req.designation.strip() if req.designation else None
+
+    if req.is_active is not None:
+        user.is_active = req.is_active
+
+    if req.new_password and req.new_password.strip():
+        user.password_hash = hash_password(req.new_password.strip())
+
+    db.commit()
+    db.refresh(user)
+
+    user_out = UserOut.from_orm(user)
+    if user.sales_head_id:
+        sh = db.query(User).filter(User.id == user.sales_head_id).first()
+        if sh:
+            user_out.sales_head_name = sh.full_name
+    return user_out
 
 @app.delete("/api/admin/users/{user_id}")
 def delete_user(user_id: int, db: Session = Depends(get_db)):
@@ -391,12 +451,25 @@ def get_sales_head_dashboard(sales_head_id: int, db: Session = Depends(get_db)):
     am_summaries = []
 
     for am in ams:
-        # Match by am.id or am.full_name (excluding direct invoices)
-        am_invs = [
-            i for i in team_invoices 
-            if i.invoice_number not in direct_inv_numbers and 
-               (i.account_manager_id == am.id or (i.account_manager_name and am.full_name.lower() in i.account_manager_name.lower()))
-        ]
+        # Match by am.id or strict am.full_name (excluding direct invoices and guarding Rekha vs Rekhal)
+        am_name_clean = am.full_name.strip().lower()
+        def matches_am(inv):
+            if inv.invoice_number in direct_inv_numbers:
+                return False
+            if inv.account_manager_id == am.id:
+                return True
+            if not inv.account_manager_name:
+                return False
+            inv_am_clean = inv.account_manager_name.strip().lower()
+            # Guard: Rekha vs Rekhal strict separation
+            if (am_name_clean == "rekha" or am_name_clean.startswith("rekha ")) and ("rekhal" in inv_am_clean or "rehal" in inv_am_clean):
+                return False
+            if ("rekhal" in am_name_clean or "rehal" in am_name_clean) and inv_am_clean == "rekha":
+                return False
+            tokens = [re.sub(r"[^a-zA-Z0-9]", "", t) for t in am_name_clean.split() if len(t) >= 3]
+            return any(re.search(r'\b' + re.escape(t) + r'\b', inv_am_clean) for t in tokens)
+
+        am_invs = [i for i in team_invoices if matches_am(i)]
         am_clients = set(i.party_name for i in am_invs)
         
         am_green = sum(i.pending_amount for i in am_invs if i.aging_status == "GREEN" and i.amount_type != "Cr")
@@ -460,15 +533,36 @@ def get_am_dashboard(am_identifier: str, db: Session = Depends(get_db)):
     am_name = am_user.full_name if am_user else am_identifier
     am_id = am_user.id if am_user else None
 
-    # Fetch pending invoices
+    # Fetch pending invoices (with strict AM matching and Rekha vs Rekhal isolation)
     query = db.query(Invoice).filter(Invoice.status == "PENDING")
+    am_clean = am_name.strip().lower()
+    first_token = am_name.split()[0].strip()
+
     if am_id:
         query = query.filter(
             (Invoice.account_manager_id == am_id) | 
-            (Invoice.account_manager_name.ilike(f"%{am_name.split()[0]}%"))
+            (Invoice.account_manager_name == am_name) |
+            (Invoice.account_manager_name.ilike(f"{first_token}")) |
+            (Invoice.account_manager_name.ilike(f"{first_token} %"))
         )
     else:
-        query = query.filter(Invoice.account_manager_name.ilike(f"%{am_identifier}%"))
+        query = query.filter(
+            (Invoice.account_manager_name == am_identifier) |
+            (Invoice.account_manager_name.ilike(f"{first_token}")) |
+            (Invoice.account_manager_name.ilike(f"{first_token} %"))
+        )
+
+    # Strict isolation: if this AM is Rekha, never grab Rekhal / Rehal invoices
+    if am_clean == "rekha" or am_clean.startswith("rekha "):
+        query = query.filter(
+            ~Invoice.account_manager_name.ilike("rekhal%"),
+            ~Invoice.account_manager_name.ilike("rehal%")
+        )
+    # If this AM is Rekhal, never grab exact Rekha
+    if "rekhal" in am_clean or "rehal" in am_clean:
+        query = query.filter(
+            Invoice.account_manager_name != "Rekha"
+        )
 
     invoices = query.all()
     today = date.today()
@@ -712,6 +806,21 @@ def find_matching_account_manager(db: Session, raw_name: str) -> Optional[User]:
         "pdy", "pondy", "cbe", "hq", "br", "group", "am", "branch", "tamilnadu", "tn", "as", "on"
     ]]
 
+    def is_conflict(t_tokens, u_tokens, t_str, u_str):
+        # Guard 1: prevent 'kumaran' and 'karan' cross-matching
+        if ("kumaran" in t_tokens and "karan" in u_tokens) or ("karan" in t_tokens and "kumaran" in u_tokens):
+            return True
+        # Guard 2: prevent 'rekha' and 'rekhal' / 'rehal' cross-matching
+        has_rekhal_target = any(t in ["rekhal", "rehal"] for t in t_tokens) or "rekhal" in t_str or "rehal" in t_str
+        has_rekhal_user = any(t in ["rekhal", "rehal"] for t in u_tokens) or "rekhal" in u_str or "rehal" in u_str
+        has_rekha_target = any(t == "rekha" for t in t_tokens)
+        has_rekha_user = any(t == "rekha" for t in u_tokens)
+        if (has_rekhal_target and has_rekha_user and not has_rekhal_user):
+            return True
+        if (has_rekha_target and has_rekhal_user and not has_rekhal_target):
+            return True
+        return False
+
     # 1. Exact match (full_name or username)
     for u in all_users:
         u_name = u.full_name.strip().lower()
@@ -722,21 +831,21 @@ def find_matching_account_manager(db: Session, raw_name: str) -> Optional[User]:
     for u in all_users:
         u_tokens = [re.sub(r"[^a-zA-Z0-9]", "", t) for t in u.full_name.lower().split()]
         u_tokens = [t for t in u_tokens if t and len(t) >= 3]
-        # Guard: prevent 'kumaran' and 'karan' cross-matching
-        if ("kumaran" in target_tokens and "karan" in u_tokens) or ("karan" in target_tokens and "kumaran" in u_tokens):
+        if is_conflict(target_tokens, u_tokens, target_lower, u.full_name.lower()):
             continue
         if any(t in u_tokens for t in target_tokens if len(t) >= 3):
             return u
         if any(t in target_tokens for t in u_tokens if len(t) >= 3):
             return u
 
-    # 3. Substring match: e.g. "Jennifer" contains "Jenifer" or vice-versa
+    # 3. Whole-word / Substring match (with strict word boundaries)
     for u in all_users:
         u_clean = u.full_name.strip().lower()
-        if ("kumaran" in target_lower and u_clean == "karan") or ("karan" in target_lower and u_clean == "kumaran"):
+        u_tokens = [re.sub(r"[^a-zA-Z0-9]", "", t) for t in u_clean.split()]
+        if is_conflict(target_tokens, u_tokens, target_lower, u_clean):
             continue
         for t in target_tokens:
-            if len(t) >= 4 and (t in u_clean or u_clean in t):
+            if len(t) >= 4 and (re.search(r'\b' + re.escape(t) + r'\b', u_clean) or re.search(r'\b' + re.escape(u_clean) + r'\b', target_lower)):
                 return u
 
     # 4. Fuzzy sequence matcher (e.g. "Jennifer" vs "Jenifer" -> ratio 0.933)
@@ -744,7 +853,8 @@ def find_matching_account_manager(db: Session, raw_name: str) -> Optional[User]:
     best_score = 0.0
     for u in all_users:
         u_clean = u.full_name.strip().lower()
-        if ("kumaran" in target_lower and u_clean == "karan") or ("karan" in target_lower and u_clean == "kumaran"):
+        u_tokens = [re.sub(r"[^a-zA-Z0-9]", "", t) for t in u_clean.split()]
+        if is_conflict(target_tokens, u_tokens, target_lower, u_clean):
             continue
         ratio1 = difflib.SequenceMatcher(None, target_lower, u_clean).ratio()
         max_token_ratio = max(
@@ -752,7 +862,7 @@ def find_matching_account_manager(db: Session, raw_name: str) -> Optional[User]:
             default=0.0
         )
         score = max(ratio1, max_token_ratio)
-        if score > best_score and score >= 0.70:
+        if score > best_score and score >= 0.75:
             best_score = score
             best_match = u
 
