@@ -783,11 +783,10 @@ def update_invoice_remarks(
 
 def find_matching_account_manager(db: Session, raw_name: str) -> Optional[User]:
     """
-    Smart, case-insensitive, tokenized fuzzy matcher for Account Managers.
-    Handles filename & inner sheet variations like:
-    - 'Jennifer' <-> 'Jenifer'
-    - 'Bala PDY' <-> 'Bala'
-    - 'MURUGANANDAM' <-> 'muruganandam'
+    Regex Word-Boundary & Length-Prioritized Account Manager Matcher (Method 2).
+    Ensures strict distinction:
+    - \\bRekha\\b strictly matches Rekha only
+    - \\bRekhal\\b strictly matches Rekhal only
     """
     if not raw_name:
         return None
@@ -800,61 +799,49 @@ def find_matching_account_manager(db: Session, raw_name: str) -> Optional[User]:
         return None
 
     target_lower = clean_target.lower()
-    # Normalize common suffixes / location tags (e.g. "PDY", "Pondy", "CBE", "HQ", "BR", "AS", "ON")
+
+    # 1. Exact match (full_name or username)
+    for u in all_users:
+        if u.full_name.strip().lower() == target_lower or u.username.lower() == target_lower:
+            return u
+
+    # 2. Strict Regex Word Boundary Match (\bname\b) with Length-Descending Priority
+    # Longer names (e.g. Rekhal = 6 chars) are evaluated BEFORE shorter names (Rekha = 5 chars)
+    users_sorted = sorted(all_users, key=lambda u: len(u.full_name.strip()), reverse=True)
+
     raw_tokens = [re.sub(r"[^a-zA-Z0-9]", "", t) for t in target_lower.split()]
     target_tokens = [t for t in raw_tokens if t and t not in [
         "pdy", "pondy", "cbe", "hq", "br", "group", "am", "branch", "tamilnadu", "tn", "as", "on"
     ]]
 
-    def is_conflict(t_tokens, u_tokens, t_str, u_str):
-        # Guard 1: prevent 'kumaran' and 'karan' cross-matching
-        if ("kumaran" in t_tokens and "karan" in u_tokens) or ("karan" in t_tokens and "kumaran" in u_tokens):
+    # Word-boundary check on user name / tokens
+    for u in users_sorted:
+        u_clean = u.full_name.strip().lower()
+        # Full name word-boundary regex
+        if re.search(r'\b' + re.escape(u_clean) + r'\b', target_lower):
+            return u
+        # Token-level word-boundary regex (min 3 chars)
+        u_tokens = [re.sub(r"[^a-zA-Z0-9]", "", t) for t in u_clean.split() if len(t) >= 3]
+        for ut in u_tokens:
+            if re.search(r'\b' + re.escape(ut) + r'\b', target_lower):
+                return u
+
+    # 3. Fuzzy sequence matcher (for genuine typos like Jennifer vs Jenifer)
+    # Strict regex guard: Rekha vs Rekhal can NEVER cross-match via fuzzy logic!
+    def is_conflict(t_tokens, u_clean):
+        if ("kumaran" in t_tokens and "karan" in u_clean) or ("karan" in t_tokens and "kumaran" in u_clean):
             return True
-        # Guard 2: prevent 'rekha' and 'rekhal' / 'rehal' cross-matching
-        has_rekhal_target = any(t in ["rekhal", "rehal"] for t in t_tokens) or "rekhal" in t_str or "rehal" in t_str
-        has_rekhal_user = any(t in ["rekhal", "rehal"] for t in u_tokens) or "rekhal" in u_str or "rehal" in u_str
-        has_rekha_target = any(t == "rekha" for t in t_tokens)
-        has_rekha_user = any(t == "rekha" for t in u_tokens)
-        if (has_rekhal_target and has_rekha_user and not has_rekhal_user):
+        if ("rekhal" in t_tokens or "rehal" in t_tokens) and u_clean == "rekha":
             return True
-        if (has_rekha_target and has_rekhal_user and not has_rekhal_target):
+        if "rekha" in t_tokens and ("rekhal" in u_clean or "rehal" in u_clean):
             return True
         return False
 
-    # 1. Exact match (full_name or username)
-    for u in all_users:
-        u_name = u.full_name.strip().lower()
-        if u_name == target_lower or u.username.lower() == target_lower:
-            return u
-
-    # 2. Token overlap: e.g. "Bala PDY" target_tokens=["bala"], u.full_name="Bala"
-    for u in all_users:
-        u_tokens = [re.sub(r"[^a-zA-Z0-9]", "", t) for t in u.full_name.lower().split()]
-        u_tokens = [t for t in u_tokens if t and len(t) >= 3]
-        if is_conflict(target_tokens, u_tokens, target_lower, u.full_name.lower()):
-            continue
-        if any(t in u_tokens for t in target_tokens if len(t) >= 3):
-            return u
-        if any(t in target_tokens for t in u_tokens if len(t) >= 3):
-            return u
-
-    # 3. Whole-word / Substring match (with strict word boundaries)
-    for u in all_users:
-        u_clean = u.full_name.strip().lower()
-        u_tokens = [re.sub(r"[^a-zA-Z0-9]", "", t) for t in u_clean.split()]
-        if is_conflict(target_tokens, u_tokens, target_lower, u_clean):
-            continue
-        for t in target_tokens:
-            if len(t) >= 4 and (re.search(r'\b' + re.escape(t) + r'\b', u_clean) or re.search(r'\b' + re.escape(u_clean) + r'\b', target_lower)):
-                return u
-
-    # 4. Fuzzy sequence matcher (e.g. "Jennifer" vs "Jenifer" -> ratio 0.933)
     best_match = None
     best_score = 0.0
-    for u in all_users:
+    for u in users_sorted:
         u_clean = u.full_name.strip().lower()
-        u_tokens = [re.sub(r"[^a-zA-Z0-9]", "", t) for t in u_clean.split()]
-        if is_conflict(target_tokens, u_tokens, target_lower, u_clean):
+        if is_conflict(target_tokens, u_clean):
             continue
         ratio1 = difflib.SequenceMatcher(None, target_lower, u_clean).ratio()
         max_token_ratio = max(
@@ -862,7 +849,7 @@ def find_matching_account_manager(db: Session, raw_name: str) -> Optional[User]:
             default=0.0
         )
         score = max(ratio1, max_token_ratio)
-        if score > best_score and score >= 0.75:
+        if score > best_score and score >= 0.80:
             best_score = score
             best_match = u
 
@@ -901,12 +888,14 @@ async def upload_tally_excel(
             )
 
         # 2. Smart Match Account Manager & Sales Head
-        # Try override_am first, then detected_am_name from inner sheet
+        # Try override_am first, then detected_am_name from inner sheet, then filename
         am_user = None
         if override_am:
             am_user = find_matching_account_manager(db, override_am)
-        if not am_user and detected_am_name:
+        if not am_user and detected_am_name and detected_am_name != "Unassigned":
             am_user = find_matching_account_manager(db, detected_am_name)
+        if not am_user and file.filename:
+            am_user = find_matching_account_manager(db, file.filename)
 
         canonical_am_name = am_user.full_name if am_user else detected_am_name
         canonical_am_id = am_user.id if am_user else None
@@ -1004,17 +993,16 @@ async def upload_tally_excel(
                 new_count += 1
 
         # 4. Detect Settled / Paid Invoices:
-        # Any pending invoice for this AM not in this new weekly file is marked SETTLED/PAID
+        # Any pending invoice for this exact AM not in this new weekly file is marked SETTLED/PAID
         settled_count = 0
         am_pending_invoices_query = db.query(Invoice).filter(Invoice.status == "PENDING")
         if canonical_am_id:
             am_pending_invoices_query = am_pending_invoices_query.filter(
-                (Invoice.account_manager_id == canonical_am_id) | 
-                (Invoice.account_manager_name.ilike(f"%{canonical_am_name}%"))
+                Invoice.account_manager_id == canonical_am_id
             )
         elif canonical_am_name and canonical_am_name != "Unassigned":
             am_pending_invoices_query = am_pending_invoices_query.filter(
-                Invoice.account_manager_name.ilike(f"%{canonical_am_name}%")
+                Invoice.account_manager_name == canonical_am_name
             )
 
         all_am_pending = am_pending_invoices_query.all()
