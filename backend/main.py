@@ -888,14 +888,16 @@ async def upload_tally_excel(
             )
 
         # 2. Smart Match Account Manager & Sales Head
-        # Try override_am first, then detected_am_name from inner sheet, then filename
+        # Priority 1: User explicitly selected override_am in the upload modal
+        # Priority 2: Filename first (because billing team names the file specifically for the AM, e.g. "REKHAL BR..." vs "REKHA BR...")
+        # Priority 3: Inner sheet detected_am_name (fallback if filename is generic e.g. "Pending.xlsx")
         am_user = None
         if override_am:
             am_user = find_matching_account_manager(db, override_am)
-        if not am_user and detected_am_name and detected_am_name != "Unassigned":
-            am_user = find_matching_account_manager(db, detected_am_name)
         if not am_user and file.filename:
             am_user = find_matching_account_manager(db, file.filename)
+        if not am_user and detected_am_name and detected_am_name != "Unassigned":
+            am_user = find_matching_account_manager(db, detected_am_name)
 
         canonical_am_name = am_user.full_name if am_user else detected_am_name
         canonical_am_id = am_user.id if am_user else None
