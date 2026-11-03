@@ -1,0 +1,14 @@
+{
+  "appId": "com.finecons.rms",
+  "appName": "Finecons RMS",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

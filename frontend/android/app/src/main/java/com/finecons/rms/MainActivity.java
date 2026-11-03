@@ -1,0 +1,5 @@
+package com.finecons.rms;
+
+import com.getcapacitor.BridgeActivity;
+
+public class MainActivity extends BridgeActivity {}

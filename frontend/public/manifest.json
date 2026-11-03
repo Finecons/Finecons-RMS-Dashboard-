@@ -1,0 +1,21 @@
+{
+  "short_name": "Finecons RMS",
+  "name": "RMS - Finecons Private Limited",
+  "icons": [
+    {
+      "src": "/pwa-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/pwa-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#f4f6fc",
+  "theme_color": "#194995",
+  "display": "standalone",
+  "orientation": "portrait"
+}
