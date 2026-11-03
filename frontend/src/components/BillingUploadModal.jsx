@@ -269,36 +269,6 @@ export default function BillingUploadModal({
             </ul>
           </div>
 
-          {/* Quick Demo Test Buttons */}
-          {!summaryResult && !uploading && (
-            <div style={{ background: 'var(--fc-navy-50)', border: '1px solid #bfdbfe', borderRadius: 'var(--radius-md)', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--fc-navy-800)', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Sparkles size={14} color="var(--fc-orange-600)" />
-                <span>Instant Test Generator (Exact Tally Format):</span>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button 
-                  type="button" 
-                  className="btn-outline" 
-                  style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
-                  onClick={() => handleDownloadSample('week1')}
-                >
-                  <Download size={13} />
-                  <span>Download Week 1 (Saravanan Baseline)</span>
-                </button>
-                <button 
-                  type="button" 
-                  className="btn-outline" 
-                  style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem', borderColor: 'var(--fc-orange-600)', color: 'var(--fc-orange-700)' }}
-                  onClick={() => handleDownloadSample('week2')}
-                >
-                  <Download size={13} />
-                  <span>Download Week 2 (Clears 1475 as Paid + Adds New)</span>
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* RESULT SUMMARY VIEW */}
           {summaryResult ? (
             <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
