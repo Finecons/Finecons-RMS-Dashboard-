@@ -800,6 +800,27 @@ def find_matching_account_manager(db: Session, raw_name: str) -> Optional[User]:
 
     target_lower = clean_target.lower()
 
+    # SPECIAL GUARD: Rekha L / Rekhal vs Rekha
+    # If target has 'rekhal' or 'rekha l' (with space/dot/dash), it is strictly Rekhal (ID 32)
+    if re.search(r'\b(rekhal|rehal|rekha[\s._-]*l)\b', target_lower):
+        rekhal_user = db.query(User).filter(
+            (User.full_name.ilike('%rekhal%')) | 
+            (User.username == 'rekhal_am') | 
+            (User.id == 32)
+        ).first()
+        if rekhal_user:
+            return rekhal_user
+
+    # If target has 'rekha' without any 'l', it is strictly Rekha (ID 27)
+    if re.search(r'\brekha\b', target_lower) and not re.search(r'\b(rekhal|rehal|rekha[\s._-]*l)\b', target_lower):
+        rekha_user = db.query(User).filter(
+            (User.full_name == 'Rekha') | 
+            (User.username == 'rekha_am') | 
+            (User.id == 27)
+        ).first()
+        if rekha_user:
+            return rekha_user
+
     # 1. Exact match (full_name or username)
     for u in all_users:
         if u.full_name.strip().lower() == target_lower or u.username.lower() == target_lower:
